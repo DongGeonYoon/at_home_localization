@@ -79,8 +79,11 @@ set -u
 echo "== python packages ($VIRTUAL_ENV)"
 # numpy is pinned last: open3d accepts numpy 2, but ros2_numpy / the ROS
 # Humble python stack do not, and global_localization.py exits on import.
-python -m pip install "open3d==0.19.0" "ros2_numpy==0.0.5"
+# tf_transformations imports transforms3d; Ubuntu's python3-transforms3d
+# (0.3.1) uses np.float, removed in numpy 1.24, so every node importing
+# tf_transformations dies on import. 0.4.2 in the venv takes precedence.
+python -m pip install "open3d==0.19.0" "ros2_numpy==0.0.5" "transforms3d==0.4.2"
 python -m pip install "numpy==1.24.2"
 
-python -c "import numpy, open3d, ros2_numpy, rclpy; print('numpy', numpy.__version__, '| open3d', open3d.__version__, '|', numpy.__file__)"
+python -c "import numpy, open3d, ros2_numpy, rclpy, tf_transformations, transforms3d; print('numpy', numpy.__version__, '| open3d', open3d.__version__, '| transforms3d', transforms3d.__version__, '|', numpy.__file__)"
 echo "Done. Next: colcon build (README.md, 2. 설치와 빌드)."

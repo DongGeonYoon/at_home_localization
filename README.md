@@ -79,7 +79,8 @@ cd ~/at_home/at_home_localization
 설치하는 것:
 - apt (sudo): Nav2, pcl_ros, tf_transformations, rmw_zenoh_cpp, RViz, PCL, Eigen, APR, OpenCV(python3-opencv, 2D 맵 생성용)
 - **Livox-SDK2**: 소스를 받아 빌드하고 `/usr/local`에 설치합니다. 이미 있으면 건너뜁니다.
-- **venv 안**: `open3d==0.19.0`, `ros2_numpy==0.0.5`, **`numpy==1.24.2`**
+- **venv 안**: `open3d==0.19.0`, `ros2_numpy==0.0.5`, `transforms3d==0.4.2`, **`numpy==1.24.2`**
+  - Ubuntu의 `python3-transforms3d`(0.3.1)는 numpy 1.24에서 지워진 `np.float`를 씁니다. 그래서 `tf_transformations`를 쓰는 노드(global_localization, transform_fusion, self_filter)가 시작하자마자 `AttributeError: module 'numpy' has no attribute 'float'`로 종료됩니다. venv에 0.4.2를 설치하면 이 버전이 먼저 잡힙니다.
   - numpy 2.x가 잡히면 `global_localization.py`가 시작하자마자 종료됩니다. 스크립트는 numpy를 마지막에 1.24.2로 고정합니다.
   - 스크립트는 venv의 `bin/activate`에 `PYTHONNOUSERSITE=1`을 추가합니다. 그래야 `~/.local`에 설치된 다른 버전의 numpy나 open3d가 끼어들지 않습니다.
   - apt와 Livox-SDK2가 이미 설치돼 있으면 `./install_deps.sh --skip-system`으로 Python 패키지만 설치할 수 있습니다.
