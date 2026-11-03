@@ -33,7 +33,8 @@ at_home_localization/
 │   └── mppi_nav/                # bringup launch, costmap 설정, self_filter
 ├── maps/                        # PCD 맵과 2D 맵(png/yaml)
 ├── tools/pcd_to_map.py          # PCD → 2D 점유 격자 생성
-└── install_deps.sh              # 의존성 설치 (처음 한 번)
+├── environment.yml              # conda 환경 (측위 노드의 Python 패키지)
+└── install_deps.sh              # 시스템 의존성 설치 (apt, Livox-SDK2)
 ```
 
 | 패키지 | 원본 | 이 레포에서 바꾼 것 |
@@ -48,59 +49,60 @@ at_home_localization/
 
 ## 2. 설치와 빌드
 
-Python 패키지(open3d, numpy 등)가 시스템이나 다른 프로젝트와 섞이지 않도록 **가상환경(venv)을 만들고 그 안에 clone합니다.**
+ROS 2 Humble과 C++ 빌드 의존성은 시스템(apt)에 설치하고, **측위 노드가 쓰는 Python 패키지(open3d, numpy 1.24.2 등)는 conda(mamba) 환경 `at_home_localization`에 설치합니다.**
 
-```text
-~/at_home/                      # 가상환경 (python3 -m venv)
-├── bin/activate
-├── lib/python3.10/site-packages/   # open3d, numpy 1.24.2, ros2_numpy
-└── at_home_localization/       # 이 레포 (colcon 워크스페이스)
-    ├── src/  maps/  tools/
-    └── build/  install/  log/  # 빌드하면 생김
-```
+| 단계 | conda 환경 |
+|---|---|
+| 의존성 설치(`install_deps.sh`), **빌드(`colcon build`)** | **끈 상태** (`conda deactivate`, base 포함) |
+| 실행(`ros2 launch`), 2D 맵 생성 | **켠 상태** (`conda activate at_home_localization`) |
 
-**① 가상환경 만들기 (처음 한 번)**
+conda를 켠 채로 빌드하면 CMake가 conda의 python, 컴파일러, 라이브러리를 잡을 수 있습니다. 그래서 빌드할 때는 반드시 끄세요.
+
+**① 시스템 의존성 (처음 한 번)**: Ubuntu 22.04에 ROS 2 Humble이 설치된 상태에서 실행합니다.
 ```bash
-conda deactivate 2>/dev/null            # conda가 켜져 있으면 끄기 (base 포함)
-sudo apt install -y python3-venv git
-python3 -m venv --system-site-packages ~/at_home
-```
-- **`--system-site-packages`는 꼭 넣으세요.** 빠지면 venv 안에서 ROS python 패키지(rclpy 등)를 찾지 못합니다. 설치 스크립트도 이 옵션이 없으면 멈춥니다.
-- conda 환경 위에서 venv를 만들거나 실행하지 마세요. conda python과 ROS python이 섞이면 실행이 깨집니다.
-
-**② 가상환경 안에 clone하고 의존성 설치 (처음 한 번)**: Ubuntu 22.04에 ROS 2 Humble이 설치된 상태여야 합니다.
-```bash
-source ~/at_home/bin/activate           # 프롬프트 앞에 (at_home)이 붙음
-cd ~/at_home
+conda deactivate 2>/dev/null; conda deactivate 2>/dev/null    # base까지 끄기
+cd ~
 git clone https://github.com/DongGeonYoon/at_home_localization.git
-cd ~/at_home/at_home_localization
+cd ~/at_home_localization
 ./install_deps.sh
 ```
-설치하는 것:
-- apt (sudo): Nav2, pcl_ros, tf_transformations, rmw_zenoh_cpp, RViz, PCL, Eigen, APR, OpenCV(python3-opencv, 2D 맵 생성용)
+- apt (sudo): Nav2, pcl_ros, tf_transformations, rmw_zenoh_cpp, RViz, colcon, PCL, Eigen, APR
 - **Livox-SDK2**: 소스를 받아 빌드하고 `/usr/local`에 설치합니다. 이미 있으면 건너뜁니다.
-- **venv 안**: `open3d==0.19.0`, `ros2_numpy==0.0.5`, `transforms3d==0.4.2`, **`numpy==1.24.2`**
-  - Ubuntu의 `python3-transforms3d`(0.3.1)는 numpy 1.24에서 지워진 `np.float`를 씁니다. 그래서 `tf_transformations`를 쓰는 노드(global_localization, transform_fusion, self_filter)가 시작하자마자 `AttributeError: module 'numpy' has no attribute 'float'`로 종료됩니다. venv에 0.4.2를 설치하면 이 버전이 먼저 잡힙니다.
-  - numpy 2.x가 잡히면 `global_localization.py`가 시작하자마자 종료됩니다. 스크립트는 numpy를 마지막에 1.24.2로 고정합니다.
-  - 스크립트는 venv의 `bin/activate`에 `PYTHONNOUSERSITE=1`을 추가합니다. 그래야 `~/.local`에 설치된 다른 버전의 numpy나 open3d가 끼어들지 않습니다.
-  - apt와 Livox-SDK2가 이미 설치돼 있으면 `./install_deps.sh --skip-system`으로 Python 패키지만 설치할 수 있습니다.
 
-**③ 빌드**: venv를 켠 상태에서 `python -m colcon`으로 빌드하세요.
+**② conda 환경 (처음 한 번)**: conda·mamba가 없으면 먼저 Miniforge를 설치하세요.
 ```bash
-source ~/at_home/bin/activate
+# (conda가 없을 때만) Miniforge 설치 후 터미널 다시 열기
+curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+bash Miniforge3-$(uname)-$(uname -m).sh
+
+cd ~/at_home_localization
+PYTHONNOUSERSITE=1 mamba env create -f environment.yml      # 환경 이름: at_home_localization
+```
+`environment.yml`의 내용:
+- Python 3.10. ROS Humble의 rclpy와 메시지 패키지가 이 버전용이라 반드시 맞아야 합니다.
+- pip: **`numpy==1.24.2`**, `open3d==0.19.0`, `ros2_numpy==0.0.5`, `transforms3d==0.4.2`, `pyyaml`, `opencv-python-headless`, `pillow`
+  - numpy 2.x면 `global_localization.py`가 import 단계에서 종료됩니다.
+  - `transforms3d`가 없거나 Ubuntu 버전(0.3.1)이면 `tf_transformations`를 import할 때 `AttributeError: module 'numpy' has no attribute 'float'`로 종료됩니다.
+- 환경 변수 `PYTHONNOUSERSITE=1`: `~/.local`에 설치된 다른 버전의 numpy, open3d가 끼어들지 않게 합니다. 환경을 만들 때도 명령 앞에 붙이세요. 없으면 pip이 `~/.local` 패키지를 이미 설치된 것으로 보고 건너뜁니다.
+- mamba가 없으면 `mamba` 대신 `conda`를 써도 됩니다(더 느림).
+
+**③ 빌드 (conda 끈 상태)**
+```bash
+conda deactivate 2>/dev/null; conda deactivate 2>/dev/null
 source /opt/ros/humble/setup.bash
-cd ~/at_home/at_home_localization
-python -m colcon build --symlink-install \
+cd ~/at_home_localization
+PYTHONNOUSERSITE=1 colcon build --symlink-install \
   --cmake-args -DROS_EDITION=ROS2 -DDISTRO_ROS=humble -DCMAKE_BUILD_TYPE=Release
 ```
-- `python -m colcon`으로 빌드해야 Python 노드가 venv의 python(`~/at_home/bin/python`)으로 실행됩니다. `colcon`만 쓰면 시스템 python이 잡혀 venv의 numpy와 open3d를 쓰지 않습니다.
 - `-DROS_EDITION=ROS2 -DDISTRO_ROS=humble`이 없으면 `livox_ros_driver2`가 `LIVOX_INTERFACES_INCLUDE_DIRECTORIES ... NOTFOUND`로 실패합니다.
+- `PYTHONNOUSERSITE=1`은 `~/.local`의 pip 패키지(pytest 등)가 시스템 colcon과 섞이지 않게 합니다. 개발 PC에서는 이 값이 없으면 colcon의 Python 확장이 로드되지 않았습니다. 빌드는 성공으로 끝나지만 `mppi_nav`의 launch, config 파일이 설치되지 않습니다.
+- 측위 노드(`global_localization.py`, `transform_fusion.py`)는 실행할 때 켜져 있는 conda 환경의 python으로 돌아갑니다. `self_filter`, `clear_on_relocalize`는 시스템 python으로 돌며, 시스템 numpy만으로 충분합니다.
 
 **④ 새 터미널마다** (실행, 매핑 모두)
 ```bash
-source ~/at_home/bin/activate
+conda activate at_home_localization
 source /opt/ros/humble/setup.bash
-source ~/at_home/at_home_localization/install/setup.bash
+source ~/at_home_localization/install/setup.bash
 ```
 
 **⑤ LiDAR 유선 랜 설정 (처음 한 번)**
@@ -123,13 +125,13 @@ ping -c 3 192.168.1.100                     # LiDAR 응답 확인
 LiDAR 드라이버, FAST-LIO, ICP 측위, map_server, static/local costmap, Zenoh router를 한 번에 띄웁니다.
 
 ```bash
-source ~/at_home/bin/activate
+conda activate at_home_localization
 source /opt/ros/humble/setup.bash
-source ~/at_home/at_home_localization/install/setup.bash
+source ~/at_home_localization/install/setup.bash
 export RMW_IMPLEMENTATION=rmw_zenoh_cpp
 export ROS_DOMAIN_ID=25
 
-MAP_DIR=$HOME/at_home/at_home_localization/maps
+MAP_DIR=$HOME/at_home_localization/maps
 
 ros2 launch mppi_nav slam_costmap_bringup.launch.py \
   pcd_map:=$MAP_DIR/406.pcd \
@@ -181,17 +183,17 @@ ros2 run tf2_ros tf2_echo map base_link       # 로봇 위치
 **① 실행** (터미널 두 개). 저장 경로 `map_file_path:=`는 **필수**입니다.
 ```bash
 # 터미널 1: LiDAR 드라이버
-source ~/at_home/bin/activate
+conda activate at_home_localization
 source /opt/ros/humble/setup.bash
-source ~/at_home/at_home_localization/install/setup.bash
+source ~/at_home_localization/install/setup.bash
 ros2 launch livox_ros_driver2 msg_MID360s_launch.py
 
 # 터미널 2: FAST-LIO 매핑
-source ~/at_home/bin/activate
+conda activate at_home_localization
 source /opt/ros/humble/setup.bash
-source ~/at_home/at_home_localization/install/setup.bash
+source ~/at_home_localization/install/setup.bash
 ros2 launch fast_lio mapping.launch.py config_file:=mid360.yaml \
-  map_file_path:=$HOME/at_home/at_home_localization/maps/<맵이름>.pcd
+  map_file_path:=$HOME/at_home_localization/maps/<맵이름>.pcd
 ```
 - `map_file_path`를 빠뜨리면 `map_file_path is required`로 바로 종료됩니다. 폴더가 없으면 자동으로 만듭니다.
 - 파일이 이미 있으면 덮어쓰지 않고 `<맵이름>_YYYYmmdd_HHMMSS.pcd`로 저장합니다.
@@ -209,8 +211,8 @@ ros2 service call /map_save std_srvs/srv/Trigger
 ## 5. 2D 맵(png/yaml) 만들기
 
 ```bash
-source ~/at_home/bin/activate
-cd ~/at_home/at_home_localization
+conda activate at_home_localization
+cd ~/at_home_localization
 python tools/pcd_to_map.py \
   --input maps/<맵이름>.pcd \
   --output-prefix maps/<맵이름>_structural

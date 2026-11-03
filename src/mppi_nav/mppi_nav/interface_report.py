@@ -65,7 +65,7 @@ def repo_maps_dir():
         if all(os.path.isdir(os.path.join(path, d)) for d in ("maps", "src")):
             return os.path.join(path, "maps")
         path = os.path.dirname(path)
-    return os.path.expanduser("~/at_home/at_home_localization/maps")
+    return os.path.expanduser("~/at_home_localization/maps")
 
 
 def main():

@@ -57,7 +57,7 @@ def generate_launch_description():
         if not map_file_path:
             raise RuntimeError(
                 'map_file_path is required, e.g. '
-                'map_file_path:=$HOME/at_home/at_home_localization/maps/<name>.pcd')
+                'map_file_path:=$HOME/at_home_localization/maps/<name>.pcd')
         map_file_path = os.path.abspath(os.path.expanduser(map_file_path))
         os.makedirs(os.path.dirname(map_file_path), exist_ok=True)
         return [Node(
