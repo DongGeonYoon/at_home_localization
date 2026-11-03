@@ -1,0 +1,7 @@
+image: 412_test2.png
+mode: trinary
+resolution: 0.05
+origin: [-13.246715545654297, -5.892256736755371, 0.0]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196

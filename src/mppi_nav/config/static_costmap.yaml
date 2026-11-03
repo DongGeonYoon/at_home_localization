@@ -1,0 +1,48 @@
+# Static costmap for the MPPI team: structural map (/map) + inflation only.
+# Live LiDAR obstacles are deliberately NOT added here; see local_costmap.yaml.
+# Node: /mppi_static_costmap/mppi_static_costmap (costmap_host)
+# Output: /mppi_static_costmap/costmap (nav_msgs/msg/OccupancyGrid, frame map)
+mppi_static_costmap:
+  mppi_static_costmap:
+    ros__parameters:
+      use_sim_time: false
+      global_frame: map
+      robot_base_frame: base_link
+      transform_tolerance: 0.3
+      update_frequency: 1.0
+      # The structural map never changes, so the full ~1 MB grid is resent only
+      # every 5 s (late or volatile subscribers still get it): 0.75 -> 0.16 MB/s
+      # over the shared Wi-Fi link to the MPPI PC.
+      publish_frequency: 0.2
+      rolling_window: false
+      resolution: 0.05
+      track_unknown_space: true
+      always_send_full_costmap: true
+      # Base 0.54 (L) x 0.50 (W) m centred on base_link, plus the Mid-360 at the
+      # front centre (x ~0.31, front face ~0.35). Inscribed radius 0.25 m
+      # (data 99), circumscribed sqrt(0.27^2 + 0.25^2) = 0.368 m. Cells between
+      # the two depend on heading: check the footprint, not only data >= 99.
+      footprint: "[[0.35, 0.05], [0.35, -0.05], [0.27, -0.05], [0.27, -0.25], [-0.27, -0.25], [-0.27, 0.25], [0.27, 0.25], [0.27, 0.05]]"
+
+      plugins:
+        - static_layer
+        - inflation_layer
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        enabled: true
+        map_topic: /map
+        map_subscribe_transient_local: true
+        subscribe_to_updates: true
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        enabled: true
+        # Nav2 rounds the radius up to whole cells (0.37 -> 0.40 m), so the
+        # radius alone steps the band in rings. 0.45 m with a steeper 33.5:
+        # blue (data 1-98) area on 406_new 10.80 -> 12.27 m2 (+14%) vs
+        # 0.37 / 25.0 (Nav2, 2026-11-03); 0.45 / 25.0 gave +35%.
+        inflation_radius: 0.45
+        cost_scaling_factor: 33.5
+        inflate_unknown: false
+        inflate_around_unknown: false

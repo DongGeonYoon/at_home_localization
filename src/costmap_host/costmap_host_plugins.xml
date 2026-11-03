@@ -1,0 +1,5 @@
+<library path="fresh_voxel_layer">
+  <class type="costmap_host::FreshVoxelLayer" base_class_type="nav2_costmap_2d::Layer">
+    <description>VoxelLayer rebuilt every update from observations within observation_persistence.</description>
+  </class>
+</library>

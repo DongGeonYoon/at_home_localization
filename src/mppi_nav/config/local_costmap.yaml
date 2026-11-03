@@ -1,0 +1,107 @@
+# Rolling local costmap of currently observed obstacles (desks, carts, people,
+# anything removed from the structural map), built from live LiDAR only.
+# Node: /local_costmap/local_costmap (costmap_host)
+# Output: /local_costmap/costmap (nav_msgs/msg/OccupancyGrid, frame map)
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: false
+      global_frame: map
+      robot_base_frame: base_link
+      transform_tolerance: 0.3
+      update_frequency: 5.0
+      publish_frequency: 5.0
+      rolling_window: true
+      width: 8
+      height: 8
+      resolution: 0.05
+      # Unobserved cells are reported as free (0), not unknown (-1).
+      track_unknown_space: false
+      always_send_full_costmap: true
+      # Base 0.54 (L) x 0.50 (W) m centred on base_link, plus the Mid-360 at the
+      # front centre (x ~0.31, front face ~0.35). Inscribed radius 0.25 m
+      # (data 99 = collision at any heading), circumscribed 0.368 m. A 0.38 m
+      # circle made data 99 reach where the real base still clears (passing an
+      # obstacle side-on at 0.27-0.38 m), so MPPI, which drops any rollout
+      # whose centre is >= 99, could not follow the path. The heading-dependent
+      # band 0.25-0.368 m is high cost (data 58-96) instead: avoided, passable.
+      # Robot-body returns are removed by self_filter, not footprint clearing.
+      footprint: "[[0.35, 0.05], [0.35, -0.05], [0.27, -0.05], [0.27, -0.25], [-0.27, -0.25], [-0.27, 0.25], [0.27, 0.25], [0.27, 0.05]]"
+
+      plugins:
+        - voxel_layer
+        - inflation_layer
+
+      voxel_layer:
+        # VoxelLayer that is rebuilt every update from the marking buffer, so a
+        # mark lives only lidar.observation_persistence (no ghosts in the
+        # sensor's blind band or from map->odom corrections).
+        plugin: "costmap_host::FreshVoxelLayer"
+        enabled: true
+        footprint_clearing_enabled: true
+        publish_voxel_map: false
+        # Heights are map-frame z. The map origin is the Mid-360 IMU (body) at
+        # mapping start, 0.40 m above the floor, so floor z ~= -0.40. The voxel
+        # grid must contain the sensor (z ~= 0) or raytracing is skipped.
+        origin_z: -0.40
+        z_resolution: 0.10
+        z_voxels: 16  # -0.40 .. 1.20 m
+        unknown_threshold: 15
+        mark_threshold: 0
+        # Nav2 uses the height-filtered points of a source for clearing too, so
+        # rays to floor/ceiling returns never clear the low/high voxels left by
+        # people who walked away. lidar_clear raytraces with every return.
+        observation_sources: lidar lidar_clear
+        lidar_clear:
+          topic: /cloud_registered_body
+          data_type: "PointCloud2"
+          sensor_frame: ""
+          marking: false
+          clearing: true
+          min_obstacle_height: -5.0
+          max_obstacle_height: 5.0
+          raytrace_min_range: 0.0
+          raytrace_max_range: 8.0
+          observation_persistence: 0.0
+          expected_update_rate: 0.0
+          inf_is_valid: false
+        lidar:
+          # FAST-LIO body-frame scan (frame origin = sensor, as raytracing needs)
+          # with robot-body returns removed by mppi_nav self_filter. The launch
+          # overrides this with /cloud_registered_body when the filter is off.
+          topic: /local_obstacle_cloud
+          data_type: "PointCloud2"
+          sensor_frame: ""
+          marking: true
+          clearing: false
+          # Collision band for a 0.93 m tall robot in map z. The floor measured
+          # -0.35 .. -0.40, so -0.25 keeps ~0.10-0.15 m above it against FAST-LIO
+          # z / pitch error (-0.30 left only ~5 cm and let floor returns in).
+          min_obstacle_height: -0.25
+          max_obstacle_height: 0.80
+          # Mid-360 returns closer than 0.10 m are sensor noise.
+          obstacle_min_range: 0.10
+          # Window half-size; clearing (raytrace_max_range) stays longer.
+          obstacle_max_range: 4.0
+          raytrace_min_range: 0.0
+          raytrace_max_range: 8.0
+          # Lifetime of a mark: scans from the last 1.0 s are re-marked every
+          # update. With 0.5 s the sparse Mid-360 pattern left ~30% of lethal
+          # cells changing every update (flicker); 1.0 s halves that (14%,
+          # bag replay) for ~0.4 s more ghost behind a walking person.
+          observation_persistence: 1.0
+          expected_update_rate: 0.0
+          inf_is_valid: false
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        enabled: true
+        # Same gradient as the MPPI planner costmap (cost_scaling_factor 6.67),
+        # cut at 75% of its reach (1.05 -> 0.79 m, 2026-11-03): data 99 to
+        # 0.25 m (inscribed), then 74 (0.30), 53 (0.35), 38 (0.40), 19 (0.50),
+        # 0 past 0.80 m. The full 1.05 m band covered ~70% of the area within
+        # 1 m of the robot in cluttered rooms (406); 0.53 m proved too short.
+        inflation_radius: 0.79
+        cost_scaling_factor: 6.67
+        inflate_unknown: false
+        inflate_around_unknown: false
