@@ -3,7 +3,7 @@ import os.path
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.conditions import IfCondition
 
@@ -43,13 +43,31 @@ def generate_launch_description():
         description='RViz config file path'
     )
 
-    fast_lio_node = Node(
-        package='fast_lio',
-        executable='fastlio_mapping',
-        parameters=[PathJoinSubstitution([config_path, config_file]),
-                    {'use_sim_time': use_sim_time}],
-        output='screen'
+    declare_map_file_path_cmd = DeclareLaunchArgument(
+        'map_file_path', default_value='',
+        description='Required. PCD path the map is saved to (an existing '
+                    'file is kept and the map saved as <name>_YYYYmmdd_HHMMSS.pcd)'
     )
+
+    def fast_lio_node(context):
+        # The save path is required on the command line: a path left in the
+        # yaml from another PC fails to save (missing directory) only at the
+        # end of mapping.
+        map_file_path = LaunchConfiguration('map_file_path').perform(context).strip()
+        if not map_file_path:
+            raise RuntimeError(
+                'map_file_path is required, e.g. '
+                'map_file_path:=$HOME/at_home_localization/maps/<name>.pcd')
+        map_file_path = os.path.abspath(os.path.expanduser(map_file_path))
+        os.makedirs(os.path.dirname(map_file_path), exist_ok=True)
+        return [Node(
+            package='fast_lio',
+            executable='fastlio_mapping',
+            parameters=[PathJoinSubstitution([config_path, config_file]),
+                        {'use_sim_time': use_sim_time,
+                         'map_file_path': map_file_path}],
+            output='screen'
+        )]
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
@@ -63,8 +81,9 @@ def generate_launch_description():
     ld.add_action(declare_config_file_cmd)
     ld.add_action(declare_rviz_cmd)
     ld.add_action(declare_rviz_config_path_cmd)
+    ld.add_action(declare_map_file_path_cmd)
 
-    ld.add_action(fast_lio_node)
+    ld.add_action(OpaqueFunction(function=fast_lio_node))
     ld.add_action(rviz_node)
 
     return ld

@@ -12,12 +12,12 @@ TidyBot의 매핑과 측위, costmap 패키지 모음입니다. 센서는 Livox 
 
 **실행할 때마다 `pcd_map:=`와 `map_yaml:=`를 반드시 함께 넣어 주세요.**
 
-- launch 파일의 기본값은 개발 PC 경로(`~/fast_lio_ws/maps/406.pcd`, `406_new.yaml`)입니다. 이 레포를 clone한 PC에서는 그 파일이 없거나 다른 맵일 수 있습니다.
+- launch 기본값(`~/at_home_localization/maps/406.pcd`, `406_new.yaml`)은 **레포를 `~/at_home_localization`에 clone했을 때만** 맞습니다. 다른 위치에 clone했거나 다른 방에서 쓰면 기본값이 틀린 맵을 가리킵니다.
 - **PCD와 yaml은 같은 매핑 결과에서 나온 한 쌍이어야 합니다.** 다른 방의 PCD와 yaml을 섞으면 측위 좌표와 costmap 벽 위치가 어긋납니다. 이때 오류는 나지 않습니다.
 - PCD 경로가 틀리면 측위 노드 로그에 `Failed to read PCD map or map is empty`가 나오고 측위가 되지 않습니다.
 - 실행 로그에서 `Global map loaded: <경로>`를 보고 원하는 맵이 올라왔는지 확인하세요.
 
-매핑할 때도 저장 경로(`map_file_path`)를 직접 지정해야 합니다([4. 매핑](#4-매핑) 참고).
+매핑할 때도 저장 경로 `map_file_path:=`를 지정해야 합니다. 빠뜨리면 매핑 launch가 시작되지 않습니다([4. 매핑](#4-매핑) 참고).
 
 ---
 
@@ -32,13 +32,14 @@ at_home_localization/
 │   ├── costmap_host/            # Nav2 Costmap2DROS 단독 실행 + FreshVoxelLayer
 │   └── mppi_nav/                # bringup launch, costmap 설정, self_filter
 ├── maps/                        # PCD 맵과 2D 맵(png/yaml)
-└── tools/pcd_to_map.py          # PCD → 2D 점유 격자 생성
+├── tools/pcd_to_map.py          # PCD → 2D 점유 격자 생성
+└── install_deps.sh              # 의존성 설치 (처음 한 번)
 ```
 
 | 패키지 | 원본 | 이 레포에서 바꾼 것 |
 |---|---|---|
 | FAST_LIO_LOCALIZATION2 | [Smart-Wheelchair-RRC/FAST_LIO_LOCALIZATION2](https://github.com/Smart-Wheelchair-RRC/FAST_LIO_LOCALIZATION2) | point-to-plane 다중 스케일 ICP, fitness 게이트, 큰 보정 거부, 2D Pose Estimate를 base_link 기준으로 해석, `blind` 조건식 버그 수정 |
-| FAST_LIO_ROS2 | [Ericsii/FAST_LIO_ROS2](https://github.com/Ericsii/FAST_LIO_ROS2) | `map_file_path`에 저장, 파일이 있으면 `이름_YYYYmmdd_HHMMSS.pcd`로 저장 |
+| FAST_LIO_ROS2 | [Ericsii/FAST_LIO_ROS2](https://github.com/Ericsii/FAST_LIO_ROS2) | 저장 경로를 launch 인자 `map_file_path:=`로 받음(필수), 파일이 있으면 `이름_YYYYmmdd_HHMMSS.pcd`로 저장 |
 | livox_ros_driver2 | [Livox-SDK/livox_ros_driver2](https://github.com/Livox-SDK/livox_ros_driver2) | `config/MID360s_config.json` (호스트 IP) |
 
 원본 레포의 라이선스 파일(`LICENSE`)을 그대로 두었습니다.
@@ -47,24 +48,43 @@ at_home_localization/
 
 ## 2. 설치와 빌드
 
-**필요한 것**
-- Ubuntu 22.04, ROS 2 Humble
-- [Livox-SDK2](https://github.com/Livox-SDK/Livox-SDK2) (`/usr/local/lib/liblivox_lidar_sdk_shared.so`)
-- Nav2 (`ros-humble-navigation2`), `ros-humble-pcl-ros`, `ros-humble-tf-transformations`, `ros-humble-rmw-zenoh-cpp`
-- Python: `open3d` (0.19.0에서 확인), `ros2_numpy`, **`numpy==1.24.2`**
-  - numpy 2.x가 잡히면 `global_localization.py`가 시작하자마자 종료됩니다(`ros2_numpy`/open3d 호환 문제).
-  - conda 환경이 켜져 있으면 시스템 python(`/usr/bin/python3`)과 패키지가 섞일 수 있습니다. 빌드하고 실행할 때는 conda를 끄세요.
+**레포는 `~/at_home_localization`에 clone하세요.** launch 기본 경로가 이 위치를 기준으로 합니다.
 
+**① 의존성 설치 (처음 한 번)**: Ubuntu 22.04에 ROS 2 Humble이 설치된 상태에서 실행합니다.
 ```bash
 cd ~
-git clone git@github.com:DongGeonYoon/at_home_localization.git
+git clone https://github.com/DongGeonYoon/at_home_localization.git
+cd ~/at_home_localization
+conda deactivate 2>/dev/null; ./install_deps.sh
+```
+설치하는 것:
+- apt: Nav2, pcl_ros, tf_transformations, rmw_zenoh_cpp, RViz, PCL, Eigen, APR
+- **Livox-SDK2**: 소스를 받아 빌드하고 `/usr/local`에 설치합니다. 이미 있으면 건너뜁니다.
+- Python(`--user`): `open3d==0.19.0`, `ros2_numpy==0.0.5`, **`numpy==1.24.2`**
+  - numpy 2.x가 잡히면 `global_localization.py`가 시작하자마자 종료됩니다. 스크립트는 numpy를 마지막에 1.24.2로 고정합니다.
+  - conda 환경이 켜져 있으면 스크립트가 멈춥니다. conda python과 시스템 ROS python이 섞이면 실행이 깨지기 때문입니다. 실행할 때도 conda를 끄세요.
+
+**② 빌드**
+```bash
 cd ~/at_home_localization
 source /opt/ros/humble/setup.bash
 colcon build --symlink-install \
   --cmake-args -DROS_EDITION=ROS2 -DDISTRO_ROS=humble -DCMAKE_BUILD_TYPE=Release
 ```
-
 `-DROS_EDITION=ROS2 -DDISTRO_ROS=humble`이 없으면 `livox_ros_driver2`가 `LIVOX_INTERFACES_INCLUDE_DIRECTORIES ... NOTFOUND`로 실패합니다.
+
+**③ LiDAR 유선 랜 설정 (처음 한 번)**
+
+Mid-360은 `192.168.1.100`, PC는 **`192.168.1.5`**로 고정되어 있습니다(`src/livox_ros_driver2/config/MID360s_config.json`).
+```bash
+nmcli device status                         # LiDAR에 연결된 유선 장치 이름 확인 (예: enp3s0)
+sudo nmcli connection add type ethernet ifname <장치이름> con-name livox \
+  ipv4.method manual ipv4.addresses 192.168.1.5/24 ipv6.method disabled
+sudo nmcli connection up livox
+ping -c 3 192.168.1.100                     # LiDAR 응답 확인
+```
+- PC IP를 다르게 쓰려면 `MID360s_config.json`의 `host_ip`를 같은 값으로 바꾸세요. `--symlink-install`로 빌드했다면 다시 빌드하지 않아도 됩니다.
+- LiDAR IP가 `192.168.1.100`이 아니면(공장 설정은 `192.168.1.1xx`, 끝자리는 시리얼 번호 끝 두 자리) `lidar_configs[0].ip`를 바꾸세요.
 
 ---
 
@@ -99,8 +119,8 @@ ros2 launch mppi_nav slam_costmap_bringup.launch.py \
 
 | 인자 | 기본값 | 설명 |
 |---|---|---|
-| `pcd_map` | (개발 PC 경로) | **필수.** 측위용 PCD |
-| `map_yaml` | (개발 PC 경로) | **필수.** static costmap용 2D 맵 |
+| `pcd_map` | `~/at_home_localization/maps/406.pcd` | **항상 지정.** 측위용 PCD |
+| `map_yaml` | `~/at_home_localization/maps/406_new.yaml` | **항상 지정.** static costmap용 2D 맵 |
 | `run_livox` | `false` | Livox 드라이버도 함께 실행 |
 | `run_rviz` | `false` | RViz 실행 |
 | `run_zenoh` | `true` | 이 PC에서 Zenoh router(`tcp/[::]:7447`) 실행. 이미 router가 떠 있으면 `false` |
@@ -127,29 +147,25 @@ ros2 run tf2_ros tf2_echo map base_link       # 로봇 위치
 
 **측위 bringup은 꺼 두세요.** FAST-LIO와 Livox 드라이버가 서로 충돌합니다.
 
-**① 저장 경로 지정 (매번 확인)**: `src/FAST_LIO_ROS2/config/mid360.yaml`
-```yaml
-map_file_path: "/home/<사용자>/at_home_localization/maps/<맵이름>.pcd"   # 절대 경로
-pcd_save:
-    pcd_save_en: true
-```
-- 이 값은 launch 인자로 바꿀 수 없어서 파일을 직접 고쳐야 합니다. `--symlink-install`로 빌드했다면 다시 빌드하지 않아도 됩니다.
-- 파일이 이미 있으면 덮어쓰지 않고 `<맵이름>_YYYYmmdd_HHMMSS.pcd`로 저장합니다.
-
-**② 실행** (터미널 두 개)
+**① 실행** (터미널 두 개). 저장 경로 `map_file_path:=`는 **필수**입니다.
 ```bash
 # 터미널 1: LiDAR 드라이버
+source /opt/ros/humble/setup.bash
 source ~/at_home_localization/install/setup.bash
 ros2 launch livox_ros_driver2 msg_MID360s_launch.py
 
 # 터미널 2: FAST-LIO 매핑
+source /opt/ros/humble/setup.bash
 source ~/at_home_localization/install/setup.bash
-ros2 launch fast_lio mapping.launch.py config_file:=mid360.yaml
+ros2 launch fast_lio mapping.launch.py config_file:=mid360.yaml \
+  map_file_path:=$HOME/at_home_localization/maps/<맵이름>.pcd
 ```
+- `map_file_path`를 빠뜨리면 `map_file_path is required`로 바로 종료됩니다. 폴더가 없으면 자동으로 만듭니다.
+- 파일이 이미 있으면 덮어쓰지 않고 `<맵이름>_YYYYmmdd_HHMMSS.pcd`로 저장합니다.
 - 로봇을 바닥에 둔 채로 시작하세요. 맵 원점은 시작할 때 IMU 위치(바닥에서 약 0.40 m)입니다.
 - 방 밖까지 쓸 계획이면 문을 열고 매핑하세요.
 
-**③ 저장**: 매핑 터미널에서 `Ctrl+C`를 누르면 저장됩니다. 중간에 저장하려면 아래 명령을 씁니다.
+**② 저장**: 매핑 터미널에서 `Ctrl+C`를 누르면 저장됩니다. 중간에 저장하려면 아래 명령을 씁니다.
 ```bash
 ros2 service call /map_save std_srvs/srv/Trigger
 ```
@@ -179,6 +195,9 @@ cd ~/at_home_localization
 |---|---|---|---|
 | 406호 | `406.pcd` | `406_new.yaml` | 사람이 편집한 맵(현재 사용). 두 방 사이가 막혀 있음 |
 | 406호 | `406.pcd` | `406_structural.yaml` | 자동 생성. 두 방 사이 통로 약 0.70 m |
+
+406호 파일 전체: `406.pcd`(PCD), `406_new.png/.yaml`(편집한 맵, 기본값), `406_new.jpg`(편집 원본 이미지), `406_structural.png/.yaml`(자동 생성), `406_raw_occupancy.png`, `406_classification.png`, `406_residual.png`(생성 과정 확인용)
+
 | 412호 | `412.pcd` | `412_test1.yaml` | 책상 제거, 벽만 남김 |
 | 412호 | `412_20261028_203939.pcd` | `412_test2.yaml` | 412호 두 번째 매핑 |
 | 실험실 | `lab_map.pcd` | `lab_map_structural.yaml` | 이미지는 `lab_map_structural_edited_0p05.png` |

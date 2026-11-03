@@ -76,7 +76,7 @@ def generate_launch_description():
     share = get_package_share_directory("mppi_nav")
     localization_share = get_package_share_directory("fast_lio_localization")
     livox_share = get_package_share_directory("livox_ros_driver2")
-    default_maps = os.path.expanduser("~/fast_lio_ws/maps")
+    default_maps = os.path.expanduser("~/at_home_localization/maps")
 
     use_sim_time = LaunchConfiguration("use_sim_time")
 

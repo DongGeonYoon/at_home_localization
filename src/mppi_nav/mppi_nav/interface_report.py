@@ -56,7 +56,7 @@ def grid_summary(msg, rate):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    maps = os.path.expanduser("~/fast_lio_ws/maps")
+    maps = os.path.expanduser("~/at_home_localization/maps")
     parser.add_argument("--pcd", default=os.path.join(maps, "406.pcd"))
     parser.add_argument(
         "--map-yaml", default=os.path.join(maps, "406_new.yaml")
