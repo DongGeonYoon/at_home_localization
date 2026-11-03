@@ -12,7 +12,7 @@ TidyBot의 매핑과 측위, costmap 패키지 모음입니다. 센서는 Livox 
 
 **실행할 때마다 `pcd_map:=`와 `map_yaml:=`를 반드시 함께 넣어 주세요.**
 
-- launch 기본값(`~/at_home_localization/maps/406.pcd`, `406_new.yaml`)은 **레포를 `~/at_home_localization`에 clone했을 때만** 맞습니다. 다른 위치에 clone했거나 다른 방에서 쓰면 기본값이 틀린 맵을 가리킵니다.
+- launch 기본값은 레포 안의 `maps/406.pcd`, `maps/406_new.yaml`입니다(clone한 위치에서 자동으로 찾음). **406호가 아닌 곳에서는 기본값이 틀린 맵**이고, 그래도 오류는 나지 않습니다.
 - **PCD와 yaml은 같은 매핑 결과에서 나온 한 쌍이어야 합니다.** 다른 방의 PCD와 yaml을 섞으면 측위 좌표와 costmap 벽 위치가 어긋납니다. 이때 오류는 나지 않습니다.
 - PCD 경로가 틀리면 측위 노드 로그에 `Failed to read PCD map or map is empty`가 나오고 측위가 되지 않습니다.
 - 실행 로그에서 `Global map loaded: <경로>`를 보고 원하는 맵이 올라왔는지 확인하세요.
@@ -48,32 +48,61 @@ at_home_localization/
 
 ## 2. 설치와 빌드
 
-**레포는 `~/at_home_localization`에 clone하세요.** launch 기본 경로가 이 위치를 기준으로 합니다.
+Python 패키지(open3d, numpy 등)가 시스템이나 다른 프로젝트와 섞이지 않도록 **가상환경(venv)을 만들고 그 안에 clone합니다.**
 
-**① 의존성 설치 (처음 한 번)**: Ubuntu 22.04에 ROS 2 Humble이 설치된 상태에서 실행합니다.
+```text
+~/at_home/                      # 가상환경 (python3 -m venv)
+├── bin/activate
+├── lib/python3.10/site-packages/   # open3d, numpy 1.24.2, ros2_numpy
+└── at_home_localization/       # 이 레포 (colcon 워크스페이스)
+    ├── src/  maps/  tools/
+    └── build/  install/  log/  # 빌드하면 생김
+```
+
+**① 가상환경 만들기 (처음 한 번)**
 ```bash
-cd ~
+conda deactivate 2>/dev/null            # conda가 켜져 있으면 끄기 (base 포함)
+sudo apt install -y python3-venv git
+python3 -m venv --system-site-packages ~/at_home
+```
+- **`--system-site-packages`는 꼭 넣으세요.** 빠지면 venv 안에서 ROS python 패키지(rclpy 등)를 찾지 못합니다. 설치 스크립트도 이 옵션이 없으면 멈춥니다.
+- conda 환경 위에서 venv를 만들거나 실행하지 마세요. conda python과 ROS python이 섞이면 실행이 깨집니다.
+
+**② 가상환경 안에 clone하고 의존성 설치 (처음 한 번)**: Ubuntu 22.04에 ROS 2 Humble이 설치된 상태여야 합니다.
+```bash
+source ~/at_home/bin/activate           # 프롬프트 앞에 (at_home)이 붙음
+cd ~/at_home
 git clone https://github.com/DongGeonYoon/at_home_localization.git
-cd ~/at_home_localization
-conda deactivate 2>/dev/null; ./install_deps.sh
+cd ~/at_home/at_home_localization
+./install_deps.sh
 ```
 설치하는 것:
-- apt: Nav2, pcl_ros, tf_transformations, rmw_zenoh_cpp, RViz, PCL, Eigen, APR
+- apt (sudo): Nav2, pcl_ros, tf_transformations, rmw_zenoh_cpp, RViz, PCL, Eigen, APR, OpenCV(python3-opencv, 2D 맵 생성용)
 - **Livox-SDK2**: 소스를 받아 빌드하고 `/usr/local`에 설치합니다. 이미 있으면 건너뜁니다.
-- Python(`--user`): `open3d==0.19.0`, `ros2_numpy==0.0.5`, **`numpy==1.24.2`**
+- **venv 안**: `open3d==0.19.0`, `ros2_numpy==0.0.5`, **`numpy==1.24.2`**
   - numpy 2.x가 잡히면 `global_localization.py`가 시작하자마자 종료됩니다. 스크립트는 numpy를 마지막에 1.24.2로 고정합니다.
-  - conda 환경이 켜져 있으면 스크립트가 멈춥니다. conda python과 시스템 ROS python이 섞이면 실행이 깨지기 때문입니다. 실행할 때도 conda를 끄세요.
+  - 스크립트는 venv의 `bin/activate`에 `PYTHONNOUSERSITE=1`을 추가합니다. 그래야 `~/.local`에 설치된 다른 버전의 numpy나 open3d가 끼어들지 않습니다.
+  - apt와 Livox-SDK2가 이미 설치돼 있으면 `./install_deps.sh --skip-system`으로 Python 패키지만 설치할 수 있습니다.
 
-**② 빌드**
+**③ 빌드**: venv를 켠 상태에서 `python -m colcon`으로 빌드하세요.
 ```bash
-cd ~/at_home_localization
+source ~/at_home/bin/activate
 source /opt/ros/humble/setup.bash
-colcon build --symlink-install \
+cd ~/at_home/at_home_localization
+python -m colcon build --symlink-install \
   --cmake-args -DROS_EDITION=ROS2 -DDISTRO_ROS=humble -DCMAKE_BUILD_TYPE=Release
 ```
-`-DROS_EDITION=ROS2 -DDISTRO_ROS=humble`이 없으면 `livox_ros_driver2`가 `LIVOX_INTERFACES_INCLUDE_DIRECTORIES ... NOTFOUND`로 실패합니다.
+- `python -m colcon`으로 빌드해야 Python 노드가 venv의 python(`~/at_home/bin/python`)으로 실행됩니다. `colcon`만 쓰면 시스템 python이 잡혀 venv의 numpy와 open3d를 쓰지 않습니다.
+- `-DROS_EDITION=ROS2 -DDISTRO_ROS=humble`이 없으면 `livox_ros_driver2`가 `LIVOX_INTERFACES_INCLUDE_DIRECTORIES ... NOTFOUND`로 실패합니다.
 
-**③ LiDAR 유선 랜 설정 (처음 한 번)**
+**④ 새 터미널마다** (실행, 매핑 모두)
+```bash
+source ~/at_home/bin/activate
+source /opt/ros/humble/setup.bash
+source ~/at_home/at_home_localization/install/setup.bash
+```
+
+**⑤ LiDAR 유선 랜 설정 (처음 한 번)**
 
 Mid-360은 `192.168.1.100`, PC는 **`192.168.1.5`**로 고정되어 있습니다(`src/livox_ros_driver2/config/MID360s_config.json`).
 ```bash
@@ -93,12 +122,13 @@ ping -c 3 192.168.1.100                     # LiDAR 응답 확인
 LiDAR 드라이버, FAST-LIO, ICP 측위, map_server, static/local costmap, Zenoh router를 한 번에 띄웁니다.
 
 ```bash
+source ~/at_home/bin/activate
 source /opt/ros/humble/setup.bash
-source ~/at_home_localization/install/setup.bash
+source ~/at_home/at_home_localization/install/setup.bash
 export RMW_IMPLEMENTATION=rmw_zenoh_cpp
 export ROS_DOMAIN_ID=25
 
-MAP_DIR=$HOME/at_home_localization/maps
+MAP_DIR=$HOME/at_home/at_home_localization/maps
 
 ros2 launch mppi_nav slam_costmap_bringup.launch.py \
   pcd_map:=$MAP_DIR/406.pcd \
@@ -119,8 +149,8 @@ ros2 launch mppi_nav slam_costmap_bringup.launch.py \
 
 | 인자 | 기본값 | 설명 |
 |---|---|---|
-| `pcd_map` | `~/at_home_localization/maps/406.pcd` | **항상 지정.** 측위용 PCD |
-| `map_yaml` | `~/at_home_localization/maps/406_new.yaml` | **항상 지정.** static costmap용 2D 맵 |
+| `pcd_map` | 레포의 `maps/406.pcd` | **항상 지정.** 측위용 PCD |
+| `map_yaml` | 레포의 `maps/406_new.yaml` | **항상 지정.** static costmap용 2D 맵 |
 | `run_livox` | `false` | Livox 드라이버도 함께 실행 |
 | `run_rviz` | `false` | RViz 실행 |
 | `run_zenoh` | `true` | 이 PC에서 Zenoh router(`tcp/[::]:7447`) 실행. 이미 router가 떠 있으면 `false` |
@@ -150,15 +180,17 @@ ros2 run tf2_ros tf2_echo map base_link       # 로봇 위치
 **① 실행** (터미널 두 개). 저장 경로 `map_file_path:=`는 **필수**입니다.
 ```bash
 # 터미널 1: LiDAR 드라이버
+source ~/at_home/bin/activate
 source /opt/ros/humble/setup.bash
-source ~/at_home_localization/install/setup.bash
+source ~/at_home/at_home_localization/install/setup.bash
 ros2 launch livox_ros_driver2 msg_MID360s_launch.py
 
 # 터미널 2: FAST-LIO 매핑
+source ~/at_home/bin/activate
 source /opt/ros/humble/setup.bash
-source ~/at_home_localization/install/setup.bash
+source ~/at_home/at_home_localization/install/setup.bash
 ros2 launch fast_lio mapping.launch.py config_file:=mid360.yaml \
-  map_file_path:=$HOME/at_home_localization/maps/<맵이름>.pcd
+  map_file_path:=$HOME/at_home/at_home_localization/maps/<맵이름>.pcd
 ```
 - `map_file_path`를 빠뜨리면 `map_file_path is required`로 바로 종료됩니다. 폴더가 없으면 자동으로 만듭니다.
 - 파일이 이미 있으면 덮어쓰지 않고 `<맵이름>_YYYYmmdd_HHMMSS.pcd`로 저장합니다.
@@ -176,8 +208,9 @@ ros2 service call /map_save std_srvs/srv/Trigger
 ## 5. 2D 맵(png/yaml) 만들기
 
 ```bash
-cd ~/at_home_localization
-/usr/bin/python3 tools/pcd_to_map.py \
+source ~/at_home/bin/activate
+cd ~/at_home/at_home_localization
+python tools/pcd_to_map.py \
   --input maps/<맵이름>.pcd \
   --output-prefix maps/<맵이름>_structural
 ```

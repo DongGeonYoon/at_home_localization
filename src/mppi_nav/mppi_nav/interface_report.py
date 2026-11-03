@@ -54,9 +54,23 @@ def grid_summary(msg, rate):
     )
 
 
+def repo_maps_dir():
+    """<repo>/maps of the checkout this file was built from.
+
+    Walks up from this file (src/ with --symlink-install, else install/ or
+    build/), so the default works wherever the repository was cloned.
+    """
+    path = os.path.dirname(os.path.realpath(__file__))
+    while path != os.path.dirname(path):
+        if all(os.path.isdir(os.path.join(path, d)) for d in ("maps", "src")):
+            return os.path.join(path, "maps")
+        path = os.path.dirname(path)
+    return os.path.expanduser("~/at_home/at_home_localization/maps")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    maps = os.path.expanduser("~/at_home_localization/maps")
+    maps = repo_maps_dir()
     parser.add_argument("--pcd", default=os.path.join(maps, "406.pcd"))
     parser.add_argument(
         "--map-yaml", default=os.path.join(maps, "406_new.yaml")
