@@ -5,6 +5,10 @@
 >
 > 개발 PC의 작업 공간에서 **측위 실행에 필요한 코드, 설정, 맵만 추려서** 올린 배포판입니다. 다른 PC에서는 이 레포만 clone해서 설치하고 실행합니다.
 > - 마지막 정리: 2026-11-27 (측위에 필요 없는 문서·예제·예전 맵 삭제, `room_baram` 맵 추가)
+>
+> **참고한 코드(원본):** 측위 패키지 `src/FAST_LIO_LOCALIZATION2`는
+> [Smart-Wheelchair-RRC/FAST_LIO_LOCALIZATION2](https://github.com/Smart-Wheelchair-RRC/FAST_LIO_LOCALIZATION2)
+> 코드를 바탕으로 TidyBot에 맞게 수정한 것입니다(바꾼 내용은 아래 표). 원본 라이선스(`src/FAST_LIO_LOCALIZATION2/LICENSE`)를 따릅니다.
 
 센서는 Livox Mid-360이고 ROS 2 Humble에서 실행합니다.
 
