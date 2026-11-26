@@ -8,7 +8,7 @@
 >
 > **참고한 코드(원본):** 측위 패키지 `src/FAST_LIO_LOCALIZATION2`는
 > [Smart-Wheelchair-RRC/FAST_LIO_LOCALIZATION2](https://github.com/Smart-Wheelchair-RRC/FAST_LIO_LOCALIZATION2)
-> 코드를 바탕으로 TidyBot에 맞게 수정한 것입니다(바꾼 내용은 아래 표). 원본 라이선스(`src/FAST_LIO_LOCALIZATION2/LICENSE`)를 따릅니다.
+> 코드를 참고했습니다. 원본 라이선스(`src/FAST_LIO_LOCALIZATION2/LICENSE`)를 따릅니다.
 
 센서는 Livox Mid-360이고 ROS 2 Humble에서 실행합니다.
 
