@@ -25,10 +25,6 @@ setup(
         # RViz layout
         (os.path.join('share', package_name, 'rviz'),
             glob('rviz/*.rviz')),
-
-        # MPPI team interface document
-        (os.path.join('share', package_name),
-            ['README_COSTMAP_INTERFACE.md']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

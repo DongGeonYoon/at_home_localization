@@ -122,11 +122,11 @@ def generate_launch_description():
         DeclareLaunchArgument("run_zenoh", default_value="true"),
         DeclareLaunchArgument("use_sim_time", default_value="false"),
         DeclareLaunchArgument(
-            "pcd_map", default_value=os.path.join(default_maps, "406.pcd")
+            "pcd_map", default_value=os.path.join(default_maps, "room_baram.pcd")
         ),
         DeclareLaunchArgument(
             "map_yaml",
-            default_value=os.path.join(default_maps, "406_new.yaml"),
+            default_value=os.path.join(default_maps, "room_baram_set.yaml"),
         ),
         DeclareLaunchArgument("localization_config", default_value="mid360.yaml"),
         # Remote router to connect to, e.g. tcp/192.168.0.93:7447. Empty keeps

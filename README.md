@@ -1,10 +1,16 @@
-# at_home_localization
+# at_home_localization (GitHub 배포판)
 
-TidyBot의 매핑과 측위, costmap 패키지 모음입니다. 센서는 Livox Mid-360이고 ROS 2 Humble에서 실행합니다.
+> **이 레포는 GitHub에 배포된 TidyBot 측위(localization) 코드입니다.**
+> https://github.com/DongGeonYoon/at_home_localization
+>
+> 개발 PC의 작업 공간에서 **측위 실행에 필요한 코드, 설정, 맵만 추려서** 올린 배포판입니다. 다른 PC에서는 이 레포만 clone해서 설치하고 실행합니다.
+> - 마지막 정리: 2026-11-27 (측위에 필요 없는 문서·예제·예전 맵 삭제, `room_baram` 맵 추가)
 
-- **매핑**: FAST-LIO로 PCD 맵을 만듭니다. 그 PCD로 2D 점유 격자(png/yaml)를 만듭니다.
+센서는 Livox Mid-360이고 ROS 2 Humble에서 실행합니다.
+
 - **측위**: FAST-LIO 오도메트리와 PCD 맵 ICP로 `map → camera_init → body → base_link` TF를 냅니다.
 - **costmap**: static costmap(구조 맵 + inflation)과 local costmap(실시간 LiDAR)을 냅니다. MPPI 제어기가 이 costmap을 사용합니다.
+- **매핑**(새 맵이 필요할 때만): FAST-LIO로 PCD 맵을 만들고, 그 PCD로 2D 점유 격자(png/yaml)를 만듭니다.
 
 ---
 
@@ -12,12 +18,12 @@ TidyBot의 매핑과 측위, costmap 패키지 모음입니다. 센서는 Livox 
 
 **실행할 때마다 `pcd_map:=`와 `map_yaml:=`를 반드시 함께 넣어 주세요.**
 
-- launch 기본값은 레포 안의 `maps/406.pcd`, `maps/406_new.yaml`입니다(clone한 위치에서 자동으로 찾음). **406호가 아닌 곳에서는 기본값이 틀린 맵**이고, 그래도 오류는 나지 않습니다.
-- **PCD와 yaml은 같은 매핑 결과에서 나온 한 쌍이어야 합니다.** 다른 방의 PCD와 yaml을 섞으면 측위 좌표와 costmap 벽 위치가 어긋납니다. 이때 오류는 나지 않습니다.
+- launch 기본값은 레포 안의 `maps/room_baram.pcd`, `maps/room_baram_set.yaml`입니다(clone한 위치에서 자동으로 찾음). **room_baram이 아닌 곳에서는 기본값이 틀린 맵**인데, 그래도 오류는 나지 않습니다.
+- **PCD와 yaml은 같은 매핑 결과에서 나온 한 쌍이어야 합니다.** 다른 방의 PCD와 yaml을 섞으면 측위 좌표와 costmap 벽 위치가 어긋납니다. 이때도 오류는 나지 않습니다.
 - PCD 경로가 틀리면 측위 노드 로그에 `Failed to read PCD map or map is empty`가 나오고 측위가 되지 않습니다.
-- 실행 로그에서 `Global map loaded: <경로>`를 보고 원하는 맵이 올라왔는지 확인하세요.
+- 실행 로그의 `Global map loaded: <경로>`에서 원하는 맵이 올라왔는지 확인하세요.
 
-매핑할 때도 저장 경로 `map_file_path:=`를 지정해야 합니다. 빠뜨리면 매핑 launch가 시작되지 않습니다([4. 매핑](#4-매핑) 참고).
+매핑할 때도 저장 경로 `map_file_path:=`를 지정해야 합니다. 빠뜨리면 매핑 launch가 시작되지 않습니다([5. 매핑](#5-매핑-새-맵이-필요할-때)).
 
 ---
 
@@ -27,12 +33,12 @@ TidyBot의 매핑과 측위, costmap 패키지 모음입니다. 센서는 Livox 
 at_home_localization/
 ├── src/
 │   ├── FAST_LIO_LOCALIZATION2/  # 측위: FAST-LIO + global_localization.py (ICP) + transform_fusion.py
-│   ├── FAST_LIO_ROS2/           # 매핑: FAST-LIO (map_save 서비스, 기존 파일 덮어쓰지 않음)
-│   ├── livox_ros_driver2/       # Mid-360 드라이버
+│   ├── livox_ros_driver2/       # Mid-360 드라이버 (FAST-LIO 빌드에 필요한 CustomMsg 포함)
+│   ├── mppi_nav/                # bringup launch, body→base_link TF, costmap 설정, self_filter
 │   ├── costmap_host/            # Nav2 Costmap2DROS 단독 실행 + FreshVoxelLayer
-│   └── mppi_nav/                # bringup launch, costmap 설정, self_filter
-├── maps/                        # PCD 맵과 2D 맵(png/yaml)
-├── tools/pcd_to_map.py          # PCD → 2D 점유 격자 생성
+│   └── FAST_LIO_ROS2/           # 매핑 전용 (새 맵을 만들 때만 사용)
+├── maps/                        # 측위용 PCD + 2D 맵(png/yaml) 쌍
+├── tools/pcd_to_map.py          # PCD → 2D 점유 격자 생성 (매핑 후)
 ├── environment.yml              # conda 환경 (측위 노드의 Python 패키지)
 └── install_deps.sh              # 시스템 의존성 설치 (apt, Livox-SDK2)
 ```
@@ -43,20 +49,32 @@ at_home_localization/
 | FAST_LIO_ROS2 | [Ericsii/FAST_LIO_ROS2](https://github.com/Ericsii/FAST_LIO_ROS2) | 저장 경로를 launch 인자 `map_file_path:=`로 받음(필수), 파일이 있으면 `이름_YYYYmmdd_HHMMSS.pcd`로 저장 |
 | livox_ros_driver2 | [Livox-SDK/livox_ros_driver2](https://github.com/Livox-SDK/livox_ros_driver2) | `config/MID360s_config.json` (호스트 IP) |
 
-원본 레포의 라이선스 파일(`LICENSE`)을 그대로 두었습니다.
+원본 레포의 라이선스 파일(`LICENSE`, `LICENSE.txt`)은 그대로 두었습니다.
+
+### 배포판에서 뺀 것
+측위 실행에 쓰이지 않아서 지웠습니다. 필요하면 위 원본 레포에서 받을 수 있습니다.
+
+| 지운 것 | 이유 |
+|---|---|
+| 원본 FAST-LIO 두 패키지의 `doc/`(논문 그림·GIF, 약 38 MB)와 원본 README | 측위 실행과 무관 |
+| 다른 LiDAR용 설정(`avia`, `horizon`, `ouster64`, `velodyne.yaml`), 쓰지 않는 RViz 설정(`rviz_cfg/`), 디버그 launch | Mid-360만 사용 |
+| `invert_livox_scan.py`, `publish_initial_pose.py`, `launch/livox.launch.py`, 원본 예제 맵 | launch와 빌드 어디에서도 쓰지 않음 |
+| livox 드라이버의 ROS1 파일, HAP·Mid-360(s 아님)·혼합 구성 설정과 launch | ROS 2 + Mid-360s 구성만 사용 |
+| 예전 맵(`lab_map`, `412`)과 2D 맵 제작 중간 산출물 | 현재 쓰지 않는 맵 |
+| MPPI 팀과 주고받은 인터페이스·분석 문서, `mppi_nav/test` | 필요한 내용은 이 README의 [8. 출력](#8-출력-다른-팀이-쓰는-인터페이스)에 정리 |
 
 ---
 
 ## 2. 설치와 빌드
 
-ROS 2 Humble과 C++ 빌드 의존성은 시스템(apt)에 설치하고, **측위 노드가 쓰는 Python 패키지(open3d, numpy 1.24.2 등)는 conda(mamba) 환경 `at_home_localization`에 설치합니다.**
+ROS 2 Humble과 C++ 빌드 의존성은 시스템(apt)에 설치합니다. **측위 노드가 쓰는 Python 패키지(open3d, numpy 1.24.2 등)는 conda(mamba) 환경 `at_home_localization`에 설치합니다.**
 
 | 단계 | conda 환경 |
 |---|---|
 | 의존성 설치(`install_deps.sh`), **빌드(`colcon build`)** | **끈 상태** (`conda deactivate`, base 포함) |
 | 실행(`ros2 launch`), 2D 맵 생성 | **켠 상태** (`conda activate at_home_localization`) |
 
-conda를 켠 채로 빌드하면 CMake가 conda의 python, 컴파일러, 라이브러리를 잡을 수 있습니다. 그래서 빌드할 때는 반드시 끄세요.
+conda를 켠 채로 빌드하면 CMake가 conda의 python, 컴파일러, 라이브러리를 잡을 수 있습니다. 빌드할 때는 반드시 끄세요.
 
 **① 시스템 의존성 (처음 한 번)**: Ubuntu 22.04에 ROS 2 Humble이 설치된 상태에서 실행합니다.
 ```bash
@@ -82,9 +100,11 @@ PYTHONNOUSERSITE=1 mamba env create -f environment.yml      # 환경 이름: at_
 - Python 3.10. ROS Humble의 rclpy와 메시지 패키지가 이 버전용이라 반드시 맞아야 합니다.
 - pip: **`numpy==1.24.2`**, `open3d==0.19.0`, `ros2_numpy==0.0.5`, `transforms3d==0.4.2`, `pyyaml`, `opencv-python-headless`, `pillow`
   - numpy 2.x면 `global_localization.py`가 import 단계에서 종료됩니다.
-  - `transforms3d`가 없거나 Ubuntu 버전(0.3.1)이면 `tf_transformations`를 import할 때 `AttributeError: module 'numpy' has no attribute 'float'`로 종료됩니다.
-- 환경 변수 `PYTHONNOUSERSITE=1`: `~/.local`에 설치된 다른 버전의 numpy, open3d가 끼어들지 않게 합니다. 환경을 만들 때도 명령 앞에 붙이세요. 없으면 pip이 `~/.local` 패키지를 이미 설치된 것으로 보고 건너뜁니다.
+  - `transforms3d`가 없거나 Ubuntu 버전(0.3.1)이면, `tf_transformations`를 import할 때 `AttributeError: module 'numpy' has no attribute 'float'`로 종료됩니다.
+- 환경 변수 `PYTHONNOUSERSITE=1`: `~/.local`에 설치된 다른 버전의 numpy, open3d가 끼어들지 않게 합니다.
 - mamba가 없으면 `mamba` 대신 `conda`를 써도 됩니다(더 느림).
+
+> ⚠️ **환경을 만들 때 명령 앞의 `PYTHONNOUSERSITE=1`을 빼지 마세요.** 이 값이 없으면 pip이 `~/.local`의 같은 이름 패키지를 이미 설치된 것으로 보고 건너뛰거나, **버전이 다르면 `~/.local`에서 지워 버릴 수 있습니다.** 개발 PC에서 실제로 `~/.local`의 numpy 등이 지워져 다른 프로그램이 깨진 일이 있었습니다(2026-11-04).
 
 **③ 빌드 (conda 끈 상태)**
 ```bash
@@ -95,7 +115,8 @@ PYTHONNOUSERSITE=1 colcon build --symlink-install \
   --cmake-args -DROS_EDITION=ROS2 -DDISTRO_ROS=humble -DCMAKE_BUILD_TYPE=Release
 ```
 - `-DROS_EDITION=ROS2 -DDISTRO_ROS=humble`이 없으면 `livox_ros_driver2`가 `LIVOX_INTERFACES_INCLUDE_DIRECTORIES ... NOTFOUND`로 실패합니다.
-- `PYTHONNOUSERSITE=1`은 `~/.local`의 pip 패키지(pytest 등)가 시스템 colcon과 섞이지 않게 합니다. 개발 PC에서는 이 값이 없으면 colcon의 Python 확장이 로드되지 않았습니다. 빌드는 성공으로 끝나지만 `mppi_nav`의 launch, config 파일이 설치되지 않습니다.
+- `PYTHONNOUSERSITE=1`은 `~/.local`의 pip 패키지가 시스템 colcon에 섞이지 않게 합니다.
+  - `~/.local` 패키지끼리 버전이 맞지 않으면 colcon의 Python 확장이 로드되지 않을 수 있습니다. 이때 빌드는 성공으로 끝나지만 `mppi_nav`의 launch, config 파일이 설치되지 않습니다.
 - 측위 노드(`global_localization.py`, `transform_fusion.py`)는 실행할 때 켜져 있는 conda 환경의 python으로 돌아갑니다. `self_filter`, `clear_on_relocalize`는 시스템 python으로 돌며, 시스템 numpy만으로 충분합니다.
 
 **④ 새 터미널마다** (실행, 매핑 모두)
@@ -116,7 +137,7 @@ sudo nmcli connection up livox
 ping -c 3 192.168.1.100                     # LiDAR 응답 확인
 ```
 - PC IP를 다르게 쓰려면 `MID360s_config.json`의 `host_ip`를 같은 값으로 바꾸세요. `--symlink-install`로 빌드했다면 다시 빌드하지 않아도 됩니다.
-- LiDAR IP가 `192.168.1.100`이 아니면(공장 설정은 `192.168.1.1xx`, 끝자리는 시리얼 번호 끝 두 자리) `lidar_configs[0].ip`를 바꾸세요.
+- LiDAR IP가 `192.168.1.100`이 아니면 `lidar_configs[0].ip`를 바꾸세요. 공장 설정은 `192.168.1.1xx`이고, 끝 두 자리는 시리얼 번호 끝 두 자리입니다.
 
 ---
 
@@ -134,30 +155,26 @@ export ROS_DOMAIN_ID=25
 MAP_DIR=$HOME/at_home_localization/maps
 
 ros2 launch mppi_nav slam_costmap_bringup.launch.py \
-  pcd_map:=$MAP_DIR/406.pcd \
-  map_yaml:=$MAP_DIR/406_new.yaml \
+  pcd_map:=$MAP_DIR/room_baram.pcd \
+  map_yaml:=$MAP_DIR/room_baram_set.yaml \
   run_livox:=true run_rviz:=true run_zenoh:=true
 ```
 
-다른 맵을 쓸 때는 **`pcd_map`과 `map_yaml`을 같은 쌍으로** 바꿉니다([6. 맵 목록](#6-맵-목록) 참고).
-
+406호에서는 **같은 쌍으로** 바꿉니다([7. 맵 목록](#7-맵-목록)).
 ```bash
-# 412호
-  pcd_map:=$MAP_DIR/412.pcd map_yaml:=$MAP_DIR/412_test1.yaml
-# 실험실
-  pcd_map:=$MAP_DIR/lab_map.pcd map_yaml:=$MAP_DIR/lab_map_structural.yaml
+  pcd_map:=$MAP_DIR/406.pcd map_yaml:=$MAP_DIR/406_new.yaml
 ```
 
 **자주 쓰는 인자**
 
 | 인자 | 기본값 | 설명 |
 |---|---|---|
-| `pcd_map` | 레포의 `maps/406.pcd` | **항상 지정.** 측위용 PCD |
-| `map_yaml` | 레포의 `maps/406_new.yaml` | **항상 지정.** static costmap용 2D 맵 |
+| `pcd_map` | 레포의 `maps/room_baram.pcd` | **항상 지정.** 측위용 PCD |
+| `map_yaml` | 레포의 `maps/room_baram_set.yaml` | **항상 지정.** static costmap용 2D 맵 |
 | `run_livox` | `false` | Livox 드라이버도 함께 실행 |
 | `run_rviz` | `false` | RViz 실행 |
 | `run_zenoh` | `true` | 이 PC에서 Zenoh router(`tcp/[::]:7447`) 실행. 이미 router가 떠 있으면 `false` |
-| `zenoh_endpoint` | `""` | 다른 PC의 router에 연결, 예: `tcp/192.168.0.93:7447` |
+| `zenoh_endpoint` | `""` | 다른 PC의 router에 연결. 예: `tcp/192.168.0.93:7447` |
 | `run_static_costmap` / `run_local_costmap` | `true` | costmap 끄기 |
 | `use_sim_time` | `false` | bag 재생 시 `true` (`ros2 bag play --clock`) |
 
@@ -167,16 +184,17 @@ ros2 topic echo /map --once --field info     # 2D 맵 크기와 origin
 ros2 run tf2_ros tf2_echo map base_link       # 로봇 위치
 ```
 
-### 초기 위치 지정
+## 4. 초기 위치 지정과 측위 판정
+
 1. RViz에서 **2D Pose Estimate**로 로봇의 실제 위치와 방향을 찍습니다. 클릭 지점은 **base_link(로봇 바닥 중심)** 기준입니다.
-2. 로그에 `ICP relocalization: fitness@0.25m 0.9xx`가 나오면 성공입니다.
+2. 로그에 `ICP relocalization: fitness@0.25m 0.9xx`가 나오면 성공입니다. 이후 1초마다 `ICP tracking` 로그가 나옵니다.
 3. `Initial pose rejected`가 나오면 이전 추정을 유지한 상태입니다. 실제 위치에 더 가깝게 다시 찍으세요(기준 fitness 0.85).
 
 추적 중 fitness가 0.75보다 낮거나, 한 번에 0.5 m 또는 10°보다 큰 보정이 나오면 그 결과는 반영하지 않습니다.
 
 ---
 
-## 4. 매핑
+## 5. 매핑 (새 맵이 필요할 때)
 
 **측위 bringup은 꺼 두세요.** FAST-LIO와 Livox 드라이버가 서로 충돌합니다.
 
@@ -197,7 +215,7 @@ ros2 launch fast_lio mapping.launch.py config_file:=mid360.yaml \
 ```
 - `map_file_path`를 빠뜨리면 `map_file_path is required`로 바로 종료됩니다. 폴더가 없으면 자동으로 만듭니다.
 - 파일이 이미 있으면 덮어쓰지 않고 `<맵이름>_YYYYmmdd_HHMMSS.pcd`로 저장합니다.
-- 로봇을 바닥에 둔 채로 시작하세요. 맵 원점은 시작할 때 IMU 위치(바닥에서 약 0.40 m)입니다.
+- 로봇을 바닥에 둔 채로 시작하세요. 맵 원점은 시작할 때의 IMU 위치(바닥에서 약 0.40 m)입니다.
 - 방 밖까지 쓸 계획이면 문을 열고 매핑하세요.
 
 **② 저장**: 매핑 터미널에서 `Ctrl+C`를 누르면 저장됩니다. 중간에 저장하려면 아래 명령을 씁니다.
@@ -206,9 +224,7 @@ ros2 service call /map_save std_srvs/srv/Trigger
 ```
 로그의 `Map saved to <경로>`에서 실제로 저장된 파일 이름을 확인하세요.
 
----
-
-## 5. 2D 맵(png/yaml) 만들기
+## 6. 2D 맵(png/yaml) 만들기
 
 ```bash
 conda activate at_home_localization
@@ -217,30 +233,24 @@ python tools/pcd_to_map.py \
   --input maps/<맵이름>.pcd \
   --output-prefix maps/<맵이름>_structural
 ```
-- 높이 map z 0.15~1.8 m(바닥에서 약 0.55~2.2 m, map 원점이 바닥 위 0.40 m라서)를 2D로 투영하고 큰 구조물(벽)만 남깁니다. 해상도는 0.05 m입니다. 관측하지 않은 영역은 unknown(-1)입니다.
+- 높이 map z 0.15~1.8 m를 2D로 투영하고 큰 구조물(벽)만 남깁니다. map 원점이 바닥 위 0.40 m라서, 바닥 기준으로는 약 0.55~2.2 m입니다. 해상도는 0.05 m이고, 관측하지 않은 영역은 unknown(-1)입니다.
 - 결과: `<맵이름>_structural.png/.yaml`(사용할 맵), 그리고 확인용 `_raw_occupancy.png`, `_classification.png`, `_residual.png`
-- 손으로 고칠 때(가구 제거, 가상 벽 추가)는 **png의 픽셀 크기를 바꾸지 말고**, yaml의 `origin`과 `resolution`은 원본 그대로 두세요. 크기가 바뀌면 PCD와 벽 위치가 어긋납니다.
+- 손으로 고칠 때(가구 제거, 가상 벽 추가)는 **png의 픽셀 크기를 바꾸지 말고**, yaml의 `origin`과 `resolution`도 원본 그대로 두세요. 크기가 바뀌면 PCD와 벽 위치가 어긋납니다.
 
 ---
 
-## 6. 맵 목록
+## 7. 맵 목록
 
 `pcd_map`과 `map_yaml`은 같은 행의 쌍으로 쓰세요.
 
 | 장소 | `pcd_map` | `map_yaml` | 비고 |
 |---|---|---|---|
-| 406호 | `406.pcd` | `406_new.yaml` | 사람이 편집한 맵(현재 사용). 두 방 사이가 막혀 있음 |
-| 406호 | `406.pcd` | `406_structural.yaml` | 자동 생성. 두 방 사이 통로 약 0.70 m |
-
-406호 파일 전체: `406.pcd`(PCD), `406_new.png/.yaml`(편집한 맵, 기본값), `406_new.jpg`(편집 원본 이미지), `406_structural.png/.yaml`(자동 생성), `406_raw_occupancy.png`, `406_classification.png`, `406_residual.png`(생성 과정 확인용)
-
-| 412호 | `412.pcd` | `412_test1.yaml` | 책상 제거, 벽만 남김 |
-| 412호 | `412_20261028_203939.pcd` | `412_test2.yaml` | 412호 두 번째 매핑 |
-| 실험실 | `lab_map.pcd` | `lab_map_structural.yaml` | 이미지는 `lab_map_structural_edited_0p05.png` |
+| **room_baram** | `room_baram.pcd` | `room_baram_set.yaml` | **현재 사용, launch 기본값.** 2026-11-05 매핑, 사람이 편집한 맵 |
+| 406호 | `406.pcd` | `406_new.yaml` | 2026-11-03 매핑, 사람이 편집한 맵. 두 방 사이가 막혀 있음 |
 
 ---
 
-## 7. 출력 (다른 팀이 쓰는 인터페이스)
+## 8. 출력 (다른 팀이 쓰는 인터페이스)
 
 | 이름 | 타입 | 내용 |
 |---|---|---|
@@ -249,6 +259,9 @@ python tools/pcd_to_map.py \
 | `/map` | `nav_msgs/OccupancyGrid` | 2D 구조 맵 |
 | `/mppi_static_costmap/costmap` | `nav_msgs/OccupancyGrid` | 구조 맵 + inflation, 0.2 Hz |
 | `/local_costmap/costmap` | `nav_msgs/OccupancyGrid` | 로봇 중심 8 × 8 m, 실시간 LiDAR, 5 Hz |
+
+- `base_link`는 베이스 기하 중심을 바닥에 투영한 점입니다. 로봇 실측 치수: 베이스 ±0.27 × ±0.25 m, LiDAR 앞면 x ≈ 0.35 m, 상단 0.93 m.
+- 맵 크기와 origin은 코드에 고정하지 말고 메시지의 `info`를 쓰세요. 미관측 셀(`-1`)은 장애물로 처리하세요.
 
 **costmap 설정** (`src/mppi_nav/config/`)
 
@@ -259,5 +272,4 @@ python tools/pcd_to_map.py \
 | 장애물 높이 (map z) | – | -0.25 ~ 0.80 m |
 | 장애물 유지 시간 | – | 1.0초 |
 
-`data` 99는 로봇 중심이 그 셀에 오면 어떤 방향이든 충돌한다는 뜻입니다. 100은 장애물 셀입니다.
-자세한 인터페이스는 `src/mppi_nav/README_COSTMAP_INTERFACE.md`에 있습니다(일부 값은 이전 기준).
+`data` 값: 100은 장애물 셀입니다. 99는 로봇 중심이 그 셀에 오면 어떤 방향이든 충돌한다는 뜻입니다. 1~98은 inflation(높을수록 장애물에 가까움)입니다.

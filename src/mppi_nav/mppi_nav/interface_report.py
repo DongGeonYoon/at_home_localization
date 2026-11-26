@@ -71,9 +71,9 @@ def repo_maps_dir():
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     maps = repo_maps_dir()
-    parser.add_argument("--pcd", default=os.path.join(maps, "406.pcd"))
+    parser.add_argument("--pcd", default=os.path.join(maps, "room_baram.pcd"))
     parser.add_argument(
-        "--map-yaml", default=os.path.join(maps, "406_new.yaml")
+        "--map-yaml", default=os.path.join(maps, "room_baram_set.yaml")
     )
     parser.add_argument("--duration", type=float, default=6.0)
     args = parser.parse_args(rclpy.utilities.remove_ros_args(sys.argv)[1:])
