@@ -1,4 +1,4 @@
-# at_home_localization (GitHub 배포판)
+# at_home_localization 
 
 > **이 레포는 GitHub에 배포된 TidyBot 측위(localization) 코드입니다.**
 > https://github.com/DongGeonYoon/at_home_localization
